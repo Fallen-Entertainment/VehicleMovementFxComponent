@@ -1,0 +1,121 @@
+// MMORPG Kit 1.73c
+using LiteNetLibManager;
+using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+namespace MultiplayerARPG
+{
+    public class VehicleMovementFxComponent : BaseGameEntityComponent<BaseGameEntity>
+    {
+        AudioSource Idle;
+        AudioSource Throttle;
+
+        [Header("Vehicle SFX Settings")]
+        public VehicleSoundFx SFX;
+
+        [Header("Vehicle VFX Settings")]
+        public VehicleVideoFx VFX;
+
+
+        // private
+        private bool ignited = false;
+
+        public override void EntityStart()
+        {
+            if (!Entity.IsClient)
+            {
+                Enabled = false;
+                return;
+            }
+
+            if (Idle == null)
+            {
+                GameObject audioSourceObject = new GameObject("_IdleAudioSource");
+                audioSourceObject.transform.parent = CacheTransform;
+                audioSourceObject.transform.localPosition = Vector3.zero;
+                audioSourceObject.transform.localRotation = Quaternion.identity;
+                audioSourceObject.transform.localScale = Vector3.one;
+                Idle = audioSourceObject.AddComponent<AudioSource>();
+                Idle.spatialBlend = 1f;
+            }
+
+            if (Throttle == null)
+            {
+                GameObject audioSourceObject = new GameObject("_ThrottleAudioSource");
+                audioSourceObject.transform.parent = CacheTransform;
+                audioSourceObject.transform.localPosition = Vector3.zero;
+                audioSourceObject.transform.localRotation = Quaternion.identity;
+                audioSourceObject.transform.localScale = Vector3.one;
+                Throttle = audioSourceObject.AddComponent<AudioSource>();
+                Throttle.spatialBlend = 1f;
+            }
+
+            AudioSource[] allSources = GetComponents<AudioSource>();
+            Idle = allSources[0];
+            Throttle = allSources[1];
+        }
+
+        public override sealed void EntityUpdate()
+        {
+            if (ignited == false)
+            {
+                // Ignition
+                Throttle.Stop();
+                Idle.PlayOneShot(SFX.ignitionAudioClip, AudioManager.Singleton == null ? 1f : AudioManager.Singleton.sfxVolumeSetting.Level);
+                ignited = true;
+                VFX.idle.Stop(true);
+                VFX.throttle.Stop(true);
+                return;
+            }
+
+            else if (!Entity.MovementState.Has(MovementState.Forward) &&
+                !Entity.MovementState.Has(MovementState.Backward) &&
+                !Entity.MovementState.Has(MovementState.Right) &&
+                !Entity.MovementState.Has(MovementState.Left))
+            {
+                // Idle
+                if (!Idle.isPlaying)
+                {
+                    Throttle.Stop();
+                    Idle.PlayOneShot(SFX.idleAudioClip, AudioManager.Singleton == null ? 1f : AudioManager.Singleton.sfxVolumeSetting.Level);
+                    VFX.throttle.Stop(true);
+                    VFX.idle.Play();
+                    return;
+                }
+            }
+
+            else if (Entity.MovementState.Has(MovementState.Forward) ||
+                 Entity.MovementState.Has(MovementState.Backward) ||
+                 Entity.MovementState.Has(MovementState.Right) ||
+                 Entity.MovementState.Has(MovementState.Left))
+            {
+                // Throttle
+                if (!Throttle.isPlaying)
+                {
+                    Idle.Stop();
+                    Throttle.PlayOneShot(SFX.throttleAudioClip, AudioManager.Singleton == null ? 1f : AudioManager.Singleton.sfxVolumeSetting.Level);
+                    VFX.idle.Stop(true);
+                    VFX.throttle.Play();
+                    return;
+                }
+            }
+        }
+    }
+
+    [System.Serializable]
+    public struct VehicleSoundFx
+    {
+        public AudioClip ignitionAudioClip;
+        public AudioClip idleAudioClip;
+        public AudioClip throttleAudioClip;
+    }
+
+    [System.Serializable]
+    public struct VehicleVideoFx
+    {
+        public ParticleSystem idle;
+        public ParticleSystem throttle;
+    }
+}
